@@ -54,11 +54,11 @@ setup(
     install_requires=[
         'requests',
         'requests-oauthlib>=0.4.2',
-        'tapioca-wrapper',
+        'tapioca-wrapper==2019.4.5',
         'daterangepy'
     ],
     dependency_links=[
-        'git+https://github.com/pavelmaksimov/tapioca-wrapper.git',
+        'git+https://github.com/pavelmaksimov/tapioca-wrapper.git#egg=tapioca-wrapper-2019.4.5',
         'git+https://github.com/pavelmaksimov/daterangepy.git'
     ],
     license="BSD",
