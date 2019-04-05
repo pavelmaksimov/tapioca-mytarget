@@ -28,7 +28,7 @@ def test_camapign_stats():
 def test_camapign_stats_():
     print(light_api.get_stats(
         limit=1, object_type=light_api.CAMPAIGN_STATS,
-        date_from='2019-01-01',
+        date_from='2018-06-01',
         date_to='2019-01-01',))
 
 

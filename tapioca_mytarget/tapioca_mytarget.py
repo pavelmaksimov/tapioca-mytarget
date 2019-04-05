@@ -91,7 +91,7 @@ class MytargetClientAdapter(JSONAdapterMixin, TapiocaAdapter):
         remaining = response_data.get('remaining')
         if remaining:
             if api_params.get('retry_request_if_limit', False):
-                if remaining.get('3600', 0) > 0 or remaining.get('60', 0) > 0:
+                if remaining.get('3600') or remaining.get('60'):
                     if remaining.get('1') == 0:
                         logging.debug('Исчерпан лимит запросов, повтор через 1 секунду')
                         time.sleep(1)
@@ -183,7 +183,7 @@ class MytargetLight:
                        is_union_results=True):
         if limit_in_request > 200:
             raise ValueError('limit_in_request должен быть <= 200')
-        if limit > 92:
+        if delta_period > 92:
             raise ValueError('delta_period должен быть <= 92')
 
         get_params = {}
@@ -468,7 +468,7 @@ class MytargetLight:
             is_union_results=is_union_results)
 
     def get_campaigns(self, limit=None, params=None,
-                      limit_in_request=50, as_dataframe=False):
+                      limit_in_request=50, as_dataframe=None):
         """
         # Добавлено 05.05.2019
         https://target.my.com/doc/apiv2/ru/resources/campaigns.html
@@ -536,7 +536,7 @@ class MytargetLight:
                                      as_dataframe=as_dataframe)
 
     def get_banners(self, limit=None, params=None,
-                    limit_in_request=50, as_dataframe=False):
+                    limit_in_request=50, as_dataframe=None):
         """
         # Добавлено 05.05.2019
         https://target.my.com/doc/apiv2/ru/resources/banners.html
