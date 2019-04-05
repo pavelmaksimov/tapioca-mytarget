@@ -13,20 +13,12 @@ import sys
 
 try:
     import pypandoc
+
     readme = pypandoc.convert('README.md', 'rst')
 except (IOError, ImportError):
     readme = ''
 
-
 package = 'tapioca_mytarget'
-requirements = [
-    'requests-oauthlib>=0.4.2',
-    'git+https://github.com/pavelmaksimov/tapioca-wrapper.git',
-    'git+https://github.com/pavelmaksimov/daterangepy.git'
-]
-test_requirements = [
-
-]
 
 
 def get_version(package):
@@ -46,7 +38,6 @@ if sys.argv[-1] == 'publish':
     print("  git push --tags")
     sys.exit()
 
-
 setup(
     name='tapioca-mytarget',
     version=get_version(package),
@@ -60,10 +51,18 @@ setup(
     ],
     package_dir={'tapioca_mytarget': 'tapioca_mytarget'},
     include_package_data=True,
-    install_requires=requirements,
+    install_requires=[
+        'requests',
+        'requests-oauthlib>=0.4.2',
+        'tapioca-wrapper',
+        'daterangepy'
+    ],
+    dependency_links=[
+        'git+https://github.com/pavelmaksimov/tapioca-wrapper.git',
+        'git+https://github.com/pavelmaksimov/daterangepy.git'
+    ],
     license="BSD",
     zip_safe=False,
     keywords='tapioca-mytarget',
-    test_suite='tests',
-    tests_require=test_requirements
+    test_suite='tests'
 )
