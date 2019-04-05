@@ -28,17 +28,17 @@ class MytargetClientAdapter(JSONAdapterMixin, TapiocaAdapter):
         """
         Низкоуровневый API.
 
-        :param access_token: токен доступа
-        :param retry_request_if_limit: ожидать и повторять запрос,
+        :param access_token: str : токен доступа
+        :param retry_request_if_limit: bool : ожидать и повторять запрос,
             если закончилась квота запросов к апи.
+        :param language: str : ru|en|{other} :
+            язык в котором будут возвращены некоторые данные, например справочников.
 
         low_api = Mytarget(access_token=ACCESS_TOKEN,
                        retry_request_if_limit=True)
-
         result = low_api.user2().get()
         data = result().data  # данные в формате json
         df = result().to_df()  # данные в формате pandas dataframe
-
         """
         super().__init__(*args, **kwargs)
 
@@ -53,12 +53,14 @@ class MytargetClientAdapter(JSONAdapterMixin, TapiocaAdapter):
     def get_request_kwargs(self, api_params, *args, **kwargs):
         params = super().get_request_kwargs(api_params, *args, **kwargs)
 
-        if api_params.get('access_token', False):
+        token = api_params.get('access_token')
+        if token:
             params['headers'].update(
-                {'Authorization': f'Bearer {api_params["access_token"]}'})
+                {'Authorization': 'Bearer {}'.format(token)})
 
         if api_params.get('language', False):
-            params['headers'].update({'Accept-Language': api_params.get('lang')})
+            params['headers'].update(
+                {'Accept-Language': api_params.get('language')})
         else:
             params['headers'].update({'Accept-Language': 'ru'})
 
@@ -121,13 +123,15 @@ class MytargetLight:
                  retry_request_if_limit=True,
                  *args, **kwargs):
         """
-        Обертка над классом Mytarget (низкоуровневым API).
+        Обертка над классом Mytarget (низкоуровневой оберткой).
 
-        :param access_token: токен доступа
-        :param as_dataframe: преобразовывать в DataFrame
-        :param retry_request_if_limit: ожидать и повторять запрос,
+        :param access_token: str : токен доступа
+        :param as_dataframe: bool : преобразовывать в DataFrame
+        :param retry_request_if_limit: bool : ожидать и повторять запрос,
             если закончилась квота запросов к апи.
-        :param default_url_params: параметры по умолчанию для вставки в url
+        :param default_url_params: dict : параметры по умолчанию для вставки в url
+        :param language: str : ru|en|{other} :
+            язык в котором будут возвращены некоторые данные, например справочников.
         :param args:
         :param kwargs:
         """
@@ -165,7 +169,8 @@ class MytargetLight:
                 try:
                     union += result().data['items']
                 except KeyError:
-                    logging.info(f'Не смог найти ключ items в {result}')
+                    logging.info('Не смог найти ключ items в {}'
+                                 .format(result))
                     raise
             return union
         else:
@@ -531,7 +536,7 @@ class MytargetLight:
                                      as_dataframe=as_dataframe)
 
     def get_banners(self, limit=None, params=None,
-                      limit_in_request=50, as_dataframe=False):
+                    limit_in_request=50, as_dataframe=False):
         """
         # Добавлено 05.05.2019
         https://target.my.com/doc/apiv2/ru/resources/banners.html
@@ -711,8 +716,8 @@ class MytargetAuth:
         if not state:
             state = 'none123'
         scopes = ','.join(map(str, scopes))
-        url = f'{url_root}{self.OAUTH_USER_URL}?response_type=code' \
-            f'&client_id={client_id}&state={state}&scope={scopes}'
+        url = '{}{}?response_type=code&client_id={}&state={}&scope={}'\
+            .format(url_root, self.OAUTH_USER_URL, client_id, state, scopes)
 
         return {'state': state, 'url': url}
 

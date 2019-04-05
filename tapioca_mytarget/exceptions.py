@@ -9,20 +9,24 @@ class MytargetApiError(Exception):
     def __str__(self):
         logging.info('HEADERS = '+str(self.response.headers))
         logging.info('URL = '+self.response.url)
-        return f'{self.response.status_code} {self.response.reason} ' \
-            f'{self.response.text}'
+        return '{} {} {}'.format(self.response.status_code,
+                                 self.response.reason,
+                                 self.response.text)
 
 
 class MytargetTokenError(MytargetApiError):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         jdata = self.response.json()
-        self.code = jdata.get('code', None) or jdata.get('error', '')
-        self.message = jdata.get('message', None) or jdata.get('error_description', '')
+        self.code = jdata.get('code', None) or \
+                    jdata.get('error', '')
+        self.message = jdata.get('message', None) or \
+                       jdata.get('error_description', '')
 
     def __str__(self):
-        return f'{self.response.status_code} {self.response.reason}, ' \
-            f'{self.code}, {self.message}'
+        return '{} {}, {}, {}'.format(self.response.status_code,
+                                      self.response.reason,
+                                      self.code, self.message)
 
 
 class MytargetTokenLimitError(MytargetApiError):
@@ -30,8 +34,10 @@ class MytargetTokenLimitError(MytargetApiError):
         super().__init__(*args, **kwargs)
 
     def __str__(self):
-        return f'{self.response.status_code} {self.response.reason} ' \
-            f'Получено максимальное кол-во токенов\n {self.response.text}'
+        return '{} {} Получено максимальное кол-во токенов\n {}' \
+            .format(self.response.status_code,
+                    self.response.reason,
+                    self.response.text)
 
 
 class MytargetLimitError(MytargetApiError):
@@ -39,4 +45,5 @@ class MytargetLimitError(MytargetApiError):
         super().__init__(*args, **kwargs)
 
     def __str__(self):
-        return 'Исчерпан лимит запросов. Повторите запрос.'
+        return 'Исчерпан лимит запросов. ' \
+               'Повторите запрос через некоторое время.'
