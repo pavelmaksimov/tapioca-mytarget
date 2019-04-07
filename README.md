@@ -1,8 +1,8 @@
-# Tapioca Mytarget
+# Python обертка для запросов к API Mytarget
 
 ## Установка
 ```
-pip install tapioca-mytarget
+pip install git+https://github.com/pavelmaksimov/tapioca-mytarget.git
 ```
 
 ## Документация
@@ -15,16 +15,17 @@ pip install tapioca-mytarget
 from tapioca_mytarget import Mytarget
 
 api = Mytarget(access_token='{access-token}', 
+               # Будет ожидать и повторять запросы, если закончится квота 
                retry_request_if_limit=True)
 ```
 
-Генерация класса происходит динамически, 
-то узнать о добавленных в схему методах, можно так.
+Генерация класса Mytarget происходит динамически, 
+поэтому узнать о добавленных в схему методах, можно так.
 ``` python
 print(dir(api))
 ```
 
-Ресурсы API указываются в схеме tapioca_mytarget/resource_mapping.py.
+Ресурсы API указываются в схеме в файле: tapioca_mytarget/resource_mapping.py.
 
 ```python
 # tapioca_mytarget/resource_mapping.py
