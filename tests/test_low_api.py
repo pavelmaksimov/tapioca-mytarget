@@ -35,6 +35,13 @@ def test_campaigns2():
     print(df)
 
 
+def test_campaign2():
+    r = api.campaign2(campaign_id='5815884').get(params={'fields': 'id,name,status'})
+    df = r().to_df()
+    print(len(df))
+    print(df)
+
+
 def test_banners2():
     r = api.banners2().get(params={'limit': 1, 'offset': 1})
     print(r().data)
@@ -43,3 +50,12 @@ def test_banners2():
 def test_regions2():
     r = api.regions2().get()
     print(r().data)
+
+
+def test_open_docs():
+    api.regions2().open_docs()
+
+
+def test_open_in_browser():
+    api.regions2().open_in_browser()
+

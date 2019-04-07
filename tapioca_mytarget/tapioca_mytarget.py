@@ -1,16 +1,16 @@
 # coding: utf-8
 import logging
 import time
+from datetime import datetime, timedelta
 
-import daterangepy
 import pandas as pd
 import requests
+from dateutil import parser
 from pandas.io.json import json_normalize
 from tapioca import (
     TapiocaAdapter, generate_wrapper_from_adapter, JSONAdapterMixin)
 
-from tapioca_mytarget.exceptions import MytargetApiError, MytargetTokenError, MytargetTokenLimitError, \
-    MytargetLimitError
+from tapioca_mytarget import exceptions
 from .resource_mapping import RESOURCE_MAPPING
 
 logging.basicConfig(level=logging.DEBUG)
@@ -69,13 +69,13 @@ class MytargetClientAdapter(JSONAdapterMixin, TapiocaAdapter):
     def wrapper_call_exception(self, response, tapioca_exception,
                                api_params, *args, **kwargs):
         if response.status_code == 400:
-            raise MytargetApiError(response)
+            raise exceptions.MytargetApiError(response)
         elif response.status_code == 401:
-            raise MytargetTokenError(response)
+            raise exceptions.MytargetTokenError(response)
         elif response.status_code == 429:
-            raise MytargetLimitError(response)
+            raise exceptions.MytargetLimitError(response)
         elif response.status_code == 404:
-            raise MytargetApiError(response)
+            raise exceptions.MytargetApiError(response)
         raise tapioca_exception
 
     def retry_request(self, response, tapioca_exception, api_params,
@@ -91,21 +91,24 @@ class MytargetClientAdapter(JSONAdapterMixin, TapiocaAdapter):
         remaining = response_data.get('remaining')
         if remaining:
             if api_params.get('retry_request_if_limit', False):
-                if remaining.get('3600') or remaining.get('60'):
+                if remaining.get('3600', remaining.get('60', True)):
                     if remaining.get('1') == 0:
-                        logging.debug('Исчерпан лимит запросов, повтор через 1 секунду')
+                        logging.debug('Исчерпан лимит запросов, '
+                                      'повтор через 1 секунду')
                         time.sleep(1)
                         return True
                 else:
-                    logging.info('Исчерпан часовой лимит запросов')
+                    logging.info('Исчерпан лимит запросов')
         return False
 
     def to_df(self, data, *args, **kwargs):
         """Преобразование в DataFrame"""
         try:
-            return json_normalize(data.get('items', None) or data)
+            df = json_normalize(data.get('items') or data)
         except Exception:
             raise TypeError('Не удалось преобразовать в DataFrame')
+        else:
+            return df
 
 
 Mytarget = generate_wrapper_from_adapter(MytargetClientAdapter)
@@ -121,6 +124,7 @@ class MytargetLight:
     def __init__(self, access_token,
                  as_dataframe=False,
                  retry_request_if_limit=True,
+                 language='ru',
                  *args, **kwargs):
         """
         Обертка над классом Mytarget (низкоуровневой оберткой).
@@ -138,10 +142,12 @@ class MytargetLight:
         self._adapter = MytargetClientAdapter(
             access_token=access_token,
             retry_request_if_limit=retry_request_if_limit,
+            language=language,
             *args, **kwargs)
         self.low_api = Mytarget(
             access_token=access_token,
             retry_request_if_limit=retry_request_if_limit,
+            language=language,
             *args, **kwargs)
         self.as_dataframe = as_dataframe
 
@@ -152,15 +158,72 @@ class MytargetLight:
             count = len(arr) // count+1
             return [arr[i::count] for i in range(count)]
 
-    def _to_format(self, results, as_dataframe=None, is_union_results=True):
+    def _period_range(self, date_from, date_to, delta):
+        """
+        Генерация периодов для получения статистики.
 
-        if (self.as_dataframe and as_dataframe is not False) \
-                or as_dataframe:
+        :param delta: int : кол-во дней в одном периоде
+        :return: [..., ('2019-01-01', '2019-01-01')]
+        """
+        if not isinstance(date_from, datetime):
+            date_from = parser.parse(date_from)
+        if not isinstance(date_to, datetime):
+            date_to = parser.parse(date_to)
+
+        periods = []
+        dt2 = None
+        while True:
+            dt1 = dt2+timedelta(1) if dt2 else date_from
+            dt2 = dt1+timedelta(delta)
+            if dt2 > date_to:
+                if dt1 <= date_to:
+                    periods.append((dt1.strftime('%Y-%m-%d'),
+                                    date_to.strftime('%Y-%m-%d')))
+                break
+            periods.append((dt1.strftime('%Y-%m-%d'),
+                            dt2.strftime('%Y-%m-%d')))
+        return periods
+
+    def _stats_to_df(self, results):
+        """Преобразует данные статистики в dataframe."""
+        try:
             df_list = []
             for result in results:
-                df = result().to_df()
-                df_list.append(df)
-            return pd.concat(df_list, sort=False).reset_index(drop=True)
+                result = result().data
+                for i in result['items']:
+                    rows = i.get('rows') or i.get('total')
+                    df_ = json_normalize(rows)
+                    df_['id'] = i['id']
+                    df_list.append(df_)
+            df = pd.concat(df_list, sort=False).reset_index(drop=True)
+        except Exception:
+            raise TypeError('Не удалось преобразовать в DataFrame')
+        else:
+            return df
+
+    def _objects_to_df(self, results):
+        """Преобразует данные объектов в dataframe."""
+        try:
+            df_list = []
+            for result in results:
+                data = result().data
+                df_ = json_normalize(data.get('items') or result)
+                df_list.append(df_)
+            df = pd.concat(df_list, sort=False).reset_index(drop=True)
+        except Exception:
+            raise TypeError('Не удалось преобразовать в DataFrame')
+        else:
+            return df
+
+    def _to_format(self, method, results, as_dataframe=None,
+                   is_union_results=True):
+        """Преобразует в указанный формат."""
+        if (self.as_dataframe and as_dataframe is not False) \
+                or as_dataframe:
+            if method == self.get_stats.__name__:
+                return self._stats_to_df(results)
+            else:
+                return self._objects_to_df(results)
 
         elif is_union_results:
             # Объединить данные в один список.
@@ -177,64 +240,26 @@ class MytargetLight:
             # Каждый ответ отдельно, в списке.
             return results
 
-    def _request_stats(self, ids, object_type, date_from=None, date_to=None,
-                       metrics=None, as_dataframe=None, limit=None,
-                       limit_in_request=200, delta_period=92,
-                       is_union_results=True):
-        if limit_in_request > 200:
-            raise ValueError('limit_in_request должен быть <= 200')
-        if delta_period > 92:
-            raise ValueError('delta_period должен быть <= 92')
-
-        get_params = {}
-        if metrics:
-            if isinstance(metrics, list):
-                metrics = ','.join(map(str, metrics))
-            get_params.update(metrics=metrics)
-
-        if date_from or date_to:
-            # Макс. период запроса 92 дня. Поэтому разделяется на периоды.
-            time_mode = self._DAY_STATS
-            periods = daterangepy.period_range(date_from, date_to,
-                                               delta=delta_period)
-        else:
-            time_mode = self._SUMMARY_STATS
-            periods = [{}]
-
-        if limit:
-            # Макс. кол-во объектов для запроса 200 дня.
-            # Создаются пачки списков из объектов, для запросов.
-            ids = ids[:limit]
-        ids_groups = self._grouper_list(ids, limit_in_request)
-
-        results = []
-        for ids in ids_groups:
-            ids_str = ','.join(map(str, ids))
-
-            for period in periods:
-                if period:
-                    get_params.update(date_from=period['date1_str'])
-                    get_params.update(date_to=period['date2_str'])
-
-                result = self.low_api.stats2(object_type=object_type,
-                                             time_mode=time_mode, ids=ids_str) \
-                    .get(params=get_params)
-
-                results.append(result)
-
-        return self._to_format(results, as_dataframe, is_union_results)
-
     def _request_objects(self, method, limit=None, params=None,
                          limit_in_request=50, as_dataframe=False):
-        if params.get('limit'):
+        """
+        Метод запрашивает все объекты.
+        """
+        if params and params.get('limit'):
             raise ValueError('Укажите limit при вызове метода, а не в параметре.')
-
         params = params or {}
         offset = params.get('offset') or 0
-        # 1 ставим, чтоб сделать первый запрос.
+        # 1 ставим, чтоб сделать первый запрос,
+        # а в ответе станет ясно, сколько сделать запросов.
         count = limit or 1
         results = []
         while count > offset:
+            if limit and limit_in_request > limit:
+                limit_in_request = limit
+            if limit and (count-offset) / limit_in_request < 1:
+                # При последнем запросе, нужно ограничить
+                # кол-во запрашиваемых объектов до оставшегося кол-ва.
+                limit_in_request = count-offset
             result = method.get(
                 params={'limit': limit_in_request,
                         'offset': offset,
@@ -255,136 +280,74 @@ class MytargetLight:
             else:
                 # Получение всех объектов.
                 count = data.get('count')
-
             offset = data['offset']+limit_in_request
 
-        return self._to_format(results, as_dataframe=as_dataframe)
+        return self._to_format(self._request_objects.__name__,
+                               results, as_dataframe=as_dataframe)
+
+    def _get_objects_for_request_stats(self, object_type, limit):
+        """
+        Получение идентификаторов объектов,
+        по которым будет запрошена статистика.
+        """
+        if object_type == self.CAMPAIGN_STATS:
+            data = self.get_campaigns(
+                limit=limit, as_dataframe=False, params={'fields': 'id'})
+            ids = [i['id'] for i in data]
+
+        elif object_type == self.BANNER_STATS:
+            data = self.get_banners(
+                limit=limit, as_dataframe=False, params={'fields': 'id'})
+            ids = [i['id'] for i in data]
+
+        elif object_type == self.USER_STATS:
+            r = self.low_api.user2().get()
+            data = r().data
+            ids = [data['id']]
+        else:
+            raise ValueError('Не известный object_type, '
+                             'разерешены только: {}, {}, {}'
+                             .format(self.CAMPAIGN_STATS,
+                                     self.BANNER_STATS,
+                                     self.USER_STATS))
+        return ids
 
     def get_stats(self, object_type=CAMPAIGN_STATS,
-                  ids=None, date_from=None, date_to=None, metrics=None,
-                  as_dataframe=None, limit=None,
-                  limit_in_request=200, is_union_results=True):
+                  date_from=None, date_to=None, metrics=None,
+                  ids=None, as_dataframe=None, limit=None,
+                  limit_in_request=200, interval=92,
+                  is_union_results=True):
         """
-        Добавлено 04.04.2019
-        base - базовые метрики:
-            shows - количество показов;
-            clicks - количество кликов;
-            goals - количество достижений целей (цели Top@Mail.ru для сайтов и установок для мобильных приложений);
-            spent - списания;
-            cpm - среднее списание за 1000 просмотров;
-            cpc - среднее списание за 1 клик;
-            cpa - среднее списание за достижение 1 цели;
-            ctr - процентное отношение количества кликов к количеству просмотров;
-            cr - процентное отношение количества достижений целей к количеству кликов.
-        events - метрики для рекламируемых сообщений в ленте социальных сетей:
-            opening_app - количество открытий рекламируемого приложения соцсетей;
-            opening_post - количество открытий рекламируемого сообщения в ленте соцсетей;
-            moving_into_group - количество переходов на страницу группы из рекламируемого сообщения;
-            clicks_on_external_url - количество кликов по внешней ссылке в рекламируемом сообщении;
-            launching_video - количество запусков видео в рекламируемом сообщении;
-            comments - количество оставленных комментариев в рекламируемом сообщении;
-            joinings - количество присоединений к группе через рекламируемое сообщение;
-            likes - количество лайков рекламируемого сообщения;
-            shares - количество действий "Поделиться" для рекламируемого сообщения;
-            votings - количество действий голосования в рекламируемом сообщении.
-        uniques - метрики по количеству уникальных пользователей:
-            reach - количество уникальных пользователей, увидевших объявление за указанный период;
-            total - общее количество уникальных пользователей, увидевших объявление за всё время;
-            increment - количество новых уникальных пользователей, увидевших объявление за указанный период;
-            frequency - средняя частота показа объявлений одному уникальному пользователю.
-        video - метрики для видеорекламы:
-            started - количество стартов воспроизведения видео;
-            paused - количество пауз воспроизведения видео;
-            resumed_after_pause - количество воспроизведения видео после паузы;
-            fullscreen_on - количество включений полноэкранного режима воспроизведения видео;
-            fullscreen_off - количество выключений полноэкранного режима воспроизведения видео;
-            sound_turned_off - количество выключений звука видео;
-            sound_turned_on - количество включений звука видео;
-            viewed_10_seconds - количество просмотров первых 10 секунд видео;
-            viewed_25_percent - количество просмотров первых 25% длительности видео;
-            viewed_50_percent - количество просмотров первых 50% длительности видео;
-            viewed_75_percent - количество просмотров первых 75% длительности видео;
-            viewed_100_percent - количество просмотров 100% длительности видео;
-            viewed_10_seconds_rate - процент просмотров с достижением первых 10 секунд видео;
-            viewed_25_percent_rate - процент просмотров с достижением первых 25% длительности видео;
-            viewed_50_percent_rate - процент просмотров с достижением первых 50% длительности видео;
-            viewed_75_percent_rate - процент просмотров с достижением первых 75% длительности видео;
-            viewed_100_percent_rate - процент просмотров с достижением 100% длительности видео;
-            depth_of_view - средняя глубина просмотра видео (в процентах);
-            view_10_seconds_cost - средняя стоимость просмотра первых 10 секунд видео;
-            viewed_25_percent_cost - средняя стоимость просмотра первых 25% длительности видео;
-            viewed_50_percent_cost - средняя стоимость просмотра первых 50% длительности видео;
-            viewed_75_percent_cost - средняя стоимость просмотра первых 75% длительности видео;
-            viewed_100_percent_cost - средняя стоимость просмотра 100% длительности видео.
-        viral - метрики виральных событий:
-            impressions - количество показов расшаренного рекламного сообщения в социальных сетях;
-            reach - количество уникальных пользователей, увидивших расшаренное рекламное сообщение за указанный период;
-            total - общее количество уникальных пользователей, увидевших расшаренное рекламное сообщение за всё время;
-            increment - количество новых уникальных пользователей, увидевших расшаренное рекламное сообщение за указанный период;
-            frequency - средняя частота показа расшаренного рекламного сообщения одному уникальному пользователю;
-            opening_app - количество открытий рекламируемого приложения из расшаренного рекламного сообщения;
-            opening_post - количество открытий расшаренного рекламируемого сообщения в ленте соцсетей;
-            moving_into_group - количество переходов на страницу группы из расшаренного рекламируемого сообщения;
-            clicks_on_external_url - количество кликов по внешней ссылке в расшаренном рекламируемом сообщении;
-            launching_video - количество запусков видео в расшаренном рекламируемом сообщении;
-            comments - количество оставленных комментариев в расшаренном рекламируемом сообщении;
-            joinings - количество присоединений к группе через расшаренное рекламируемое сообщение;
-            likes - количество лайков расшаренного рекламируемого сообщения;
-            shares - количество действий "Поделиться" для расшаренного рекламируемого сообщения;
-            votings - количество действий голосования в расшаренном рекламируемом сообщении.
-        carousel - статистика по отдельным слайдам рекламной карусели (N - от 1 до количества слайдов):
-            slide_N_shows - количество показов слайда N;
-            slide_N_clicks - количество кликов по слайду N;
-            slide_N_ctr - процентное отношение количества кликов к количеству просмотров по слайду N;
-        tps - статистика по дополнительным списаниям:
-            tps - дополнительные списания за использование сервиса moat;
-            tpd - дополнительные списания за использование сторонних данных (от dmp).
-        moat - статистика по данным сервиса moat:
-            impressions - количество показов;
-            in_view - количество видимых показов;
-            never_focused - количество показов в неактивной вкладке;
-            never_visible - количество показов вне зоны видимости;
-            never_50_perc_visible - количество показов с зоной видимости объявления менее 50%;
-            never_1_sec_visible - количество показов с длительностью видимости менее 1 секунды;
-            human_impressions - количество верифицированных показов;
-            impressions_analyzed - количество анализируемых показов;
-            in_view_percent - процент видимых показов;
-            human_and_viewable_perc - процент верифицированных показов;
-            never_focused_percent - процент показов в неактивной вкладке;
-            never_visible_percent - процент показов вне зоны видимости;
-            never_50_perc_visible_percent - процент оказов с зоной видимости объявления менее 50%;
-            never_1_sec_visible_percent - процент показов с длительностью видимости менее 1 секунды;
-            in_view_diff_percent - разница в количестве видимых показов;
-            active_in_view_time - среднее время нахождения объявления в зоне видимости;
-            attention_quality - уровень вовленчения;
+        https://target.my.com/adv/api-marketing/doc/stat-v2
 
-        :param object_type: str : banners|campaigns|users
-        :param time_mode: str : day|summary
-        :param ids: Список идентификаторов баннеров, кампаний или пользователей.
+        Если не указаны date_from и date_to, то вернется суммарная статистика.
+        Если не указаны идентификаторы объектов в ids, то они все будут получены
+        и вставлены в запрос статистики. Ограничить можно через limit.
+
+        :param object_type: str : banners|campaigns|users :
             Если нету, то будет сделан запрос объектов и
             потом вставлены в запрос к статистике.
-        :param date_from: YYYY-MM-DD[THH:MM[:SS]]
+        :param date_from: none, str, datatime : YYYY-MM-DD[THH:MM[:SS]] :
             Начальная дата. Только для day.json.
             Если отсутствует, будет запрошена стат. за все время.
-        :param date_to: YYYY-MM-DD[THH:MM[:SS]]
+        :param date_to: none, str, datatime : YYYY-MM-DD[THH:MM[:SS]] :
             Конечная дата (включительно). Только для day.json.
             Если отсутствует, будет запрошена стат. за все время.
-        :param metrics: Список наборов метрик.
-            Доступные варианты: all, base, events, video, viral, uniques, tps.
-        :param limit: макс. кол-во объектов,
-            которое нужно запросить и вставить в запрос статистики.
-        :param limit_in_request: макс. кол-во объектов в одном запросе,
-            максимум 200
-        :param is_union_results: bool : объединить результаты в один список
+        :param ids: list : Список идентификаторов баннеров, кампаний или пользователей.
+        :param metrics: str, list : Список наборов метрик.
         :param as_dataframe: bool : преобразовать в формат Pandas DataFrame.
+        :param limit: int : Макс. кол-во случайных объектов,
+            для которых запросить статистику. Например для теста.
+        :param interval: int : кол-во дней в периоде в одном запросе, максимум 92
+        :param is_union_results: bool : объединить результаты в один список
         :return dict, list :
 
         if as_dataframe True:
             DataFrame
-        if is_union_results True:
+        elif is_union_results True:
             [{"items": [...], "total": [...]},
              {"items": [...], "total": [...]}]
-        if is_union_results False:
+        elif is_union_results False:
             {"items": [...], "total": [...]}
 
         =====
@@ -441,72 +404,66 @@ class MytargetLight:
             }
         }
         """
+        if limit_in_request > 200:
+            raise ValueError('limit_in_request должен быть <= 200')
+        if interval > 92:
+            raise ValueError('delta_period должен быть <= 92')
+        if interval < 1:
+            raise ValueError('interval должен быть больше 0')
 
         if not ids:
-            # Получение объектов, по которым будет запрошена статистика.
-            if object_type == self.CAMPAIGN_STATS:
-                r = self.low_api.campaigns2().get()
-                data = r().data
-                ids = [i['id'] for i in data['items']]
+            ids = self._get_objects_for_request_stats(
+                object_type, limit=limit)
 
-            elif object_type == self.BANNER_STATS:
-                r = self.low_api.banners2().get()
-                data = r().data
-                ids = [i['id'] for i in data['items']]
+        get_params = {}
+        if metrics:
+            if isinstance(metrics, list):
+                metrics = ','.join(map(str, metrics))
+            get_params.update(metrics=metrics)
 
-            elif object_type == self.USER_STATS:
-                r = self.low_api.user2().get()
-                data = r().data
-                ids = [data['id']]
-            else:
-                raise ValueError('Не верный object_type')
+        if date_from or date_to:
+            # Макс. период запроса 92 дня.
+            # Если запрашиваемый интервал превышает,
+            # то разделяется на несколько перидов.
+            time_mode = self._DAY_STATS
+            periods = self._period_range(
+                date_from, date_to, delta=interval-1)
+        else:
+            time_mode = self._SUMMARY_STATS
+            periods = [{}]
 
-        return self._request_stats(
-            ids=ids, object_type=object_type, date_from=date_from,
-            date_to=date_to, metrics=metrics, as_dataframe=as_dataframe,
-            limit=limit, limit_in_request=limit_in_request,
-            is_union_results=is_union_results)
+        # Создаются список списков из объектов, для запросов.
+        # Макс. кол-во объектов для запроса 200 дня.
+        ids_groups = self._grouper_list(ids, limit_in_request)
 
-    def get_campaigns(self, limit=None, params=None,
-                      limit_in_request=50, as_dataframe=None):
+        results = []
+        for ids in ids_groups:
+            ids_str = ','.join(map(str, ids))
+
+            for period in periods:
+                if period:
+                    get_params.update(date_from=period[0])
+                    get_params.update(date_to=period[1])
+
+                result = self.low_api.stats2(object_type=object_type,
+                                             time_mode=time_mode, ids=ids_str) \
+                    .get(params=get_params)
+
+                results.append(result)
+
+        return self._to_format(self.get_stats.__name__, results,
+                               as_dataframe, is_union_results)
+
+    def get_campaigns(self, params=None, as_dataframe=None,
+                      limit=None, limit_in_request=50):
         """
-        # Добавлено 05.05.2019
         https://target.my.com/doc/apiv2/ru/resources/campaigns.html
         https://target.my.com/doc/apiv2/ru/objects/ads2.api_v2.campaigns.CampaignResource.html
 
-        :param limit: количество объектов в ответе, по умолчанию будут получены все
-        :param params:
+        :param limit: int : количество объектов в ответе, если None будут получены все
+        :param params: dict :
             Поля
-                Пример:
-                    fields=age_restrictions,audit_pixels,autobidding_mode,banner_uniq_shows_limit,budget_limit,budget_limit_day,cr_max_price,created,date_end,date_start,delivery,enable_utm,id,issues,mixing,name,objective,package_id,price,priced_goal,pricelist_id,shows_limit,status,targetings,uniq_shows_limit,uniq_shows_period,updated,utm
-                age_restrictions = Возрастные ограничения
-                audit_pixels = Список пикселей аудита
-                autobidding_mode = Аукционная стратегия
-                banner_uniq_shows_limit = Количество уникальных показов для баннеров
-                budget_limit = Общий бюджет кампании
-                budget_limit_day = Бюджет кампании на день
-                cr_max_price = Верхний лимит на цену конверсии
-                created = Время создания
-                date_end = Дата окончания кампании
-                date_start = Дата старта кампании
-                delivery = Статус трансляции кампании
-                enable_utm = Добавлять ли UTM-метки в URL объявлений
-                id = Идентификатор кампании
-                issues = Описание причин непоказа объявлений кампании
-                mixing = Распределение бюджета
-                name = Название кампании
-                objective = Цель рекламной кампании
-                package_id = Идентификатор пакета
-                price = Цена за одно событие
-                priced_goal = Оплата по целям ТОПа/событиям в мобильном приложении
-                pricelist_id = Идентификатор ремаркетингового прайс-листа
-                shows_limit = Ограничение на число показов
-                status = Статус кампании
-                targetings = Структура таргетингов
-                uniq_shows_limit = Количество уникальных показов
-                uniq_shows_period = Периоды для показов
-                updated = Время последнего изменения
-                utm = UTM-метки для добавления в URL объявлений
+                fields=age_restrictions,audit_pixels,autobidding_mode,banner_uniq_shows_limit,budget_limit,budget_limit_day,cr_max_price,created,date_end,date_start,delivery,enable_utm,id,issues,mixing,name,objective,package_id,price,priced_goal,pricelist_id,shows_limit,status,targetings,uniq_shows_limit,uniq_shows_period,updated,utm
             Фильтры
                 _id=6617841
                 _id__in=6617841,6711647
@@ -526,8 +483,8 @@ class MytargetLight:
                 sorting=-status - по убыванию
             по нескольким полям
                 sorting=status,name,-id
-        :param limit_in_request: кол-во объектов в одном запросе
-        :param as_dataframe: вернуть в формате dataframe
+        :param limit_in_request: int : кол-во объектов в одном запросе
+        :param as_dataframe: bool : вернуть в формате dataframe
         :return: list, dataframe
         """
         return self._request_objects(method=self.low_api.campaigns2(),
@@ -535,36 +492,17 @@ class MytargetLight:
                                      limit_in_request=limit_in_request,
                                      as_dataframe=as_dataframe)
 
-    def get_banners(self, limit=None, params=None,
-                    limit_in_request=50, as_dataframe=None):
+    def get_banners(self, params=None, as_dataframe=None,
+                    limit=None, limit_in_request=50):
         """
-        # Добавлено 05.05.2019
         https://target.my.com/doc/apiv2/ru/resources/banners.html
         https://target.my.com/doc/apiv2/ru/objects/ads2.api_v2.banners.BannerResource.html
 
-        :param limit: количество объектов в ответе,
+        :param limit: int : количество объектов в ответе,
             по умолчанию будут получены все
-        :param params:
+        :param params: dict :
             Поля
-                Пример:
-                    fields=call_to_action,campaign_id,content,created,deeplink,delivery,id,issues,moderation_reasons,moderation_status,products,status,textblocks,updated,urls,user_can_request_remoderation,video_params
-                call_to_action = Действие при клике по баннеру
-                campaign_id = Идентификатор рекламной кампании
-                content = Содержимое баннера
-                created = Время создания
-                deeplink = Deeplink ссылка
-                delivery = Статус трансляции кампании
-                id = Идентификатор объявления
-                issues = Описание причин непоказа объявления
-                moderation_reasons = Причины, по которым объявление было запрещено
-                moderation_status = Статус модерации объявления
-                products = Описание продуктов для динамического ремаркетинга
-                status = Статус объявления
-                textblocks = Блоки текстового содержимого
-                updated = Время последнего обновления
-                urls = Объекты ссылок
-                user_can_request_remoderation = Статус возможности отправки баннера на перемодерацию
-                video_params = Видео параметры объявления
+                fields=call_to_action,campaign_id,content,created,deeplink,delivery,id,issues,moderation_reasons,moderation_status,products,status,textblocks,updated,urls,user_can_request_remoderation,video_params
             Фильтры
                 _id=26617841
                 _id__in=26617841,26711647
@@ -582,8 +520,8 @@ class MytargetLight:
                 _updated__lte=2018-01-01 00:00:00
                 _url=mail.ru
                 _textblock=купить насос
-        :param limit_in_request: кол-во объектов в одном запросе
-        :param as_dataframe: вернуть в формате dataframe
+        :param limit_in_request: int : кол-во объектов в одном запросе
+        :param as_dataframe: bool : вернуть в формате dataframe
         :return: list, dataframe
         """
         return self._request_objects(method=self.low_api.banners2(),
@@ -622,16 +560,16 @@ class MytargetAuth:
         response = requests.post(url, data=kwargs)
 
         if response.status_code == 403:
-            raise MytargetTokenLimitError(response)
+            raise exceptions.MytargetTokenLimitError(response)
         elif response.status_code == 401:
-            raise MytargetTokenError(response)
+            raise exceptions.MytargetTokenError(response)
         elif 200 <= response.status_code < 300:
             try:
                 return response.json()
             except Exception:
                 return response.text
         else:
-            raise MytargetApiError(response)
+            raise exceptions.MytargetApiError(response)
 
     def get_client_token(self, client_id, client_secret,
                          permanent='false', **kwargs):
@@ -653,8 +591,8 @@ class MytargetAuth:
             permanent=permanent, is_sandbox=self.is_sandbox, **kwargs)
 
     def get_agency_client_token(self, client_id, client_secret,
-                                agency_client_name, permanent='false',
-                                **kwargs):
+                                agency_client_name,
+                                permanent='false', **kwargs):
         """
         https://target.my.com/adv/api-marketing/doc/authorization
 
@@ -671,12 +609,15 @@ class MytargetAuth:
         :return:
         """
         return self._request_oauth(
-            scheme=self.OAUTH_TOKEN_URL, grant_type=self.GRANT_AGENCY_CLIENT,
+            scheme=self.OAUTH_TOKEN_URL,
+            grant_type=self.GRANT_AGENCY_CLIENT,
             client_id=client_id, client_secret=client_secret,
-            agency_client_name=agency_client_name, permanent=permanent,
-            is_sandbox=self.is_sandbox, **kwargs)
+            agency_client_name=agency_client_name,
+            permanent=permanent, is_sandbox=self.is_sandbox,
+            **kwargs)
 
-    def oauth_url(self, client_id, scopes=OAUTH_ADS_SCOPES, state=None):
+    def oauth_url(self, client_id, scopes=OAUTH_ADS_SCOPES,
+                  state=None):
         """
         https://target.my.com/adv/api-marketing/doc/authorization
         Формирует ссылку для перенаправления юзера на страницу авторизации
@@ -716,12 +657,12 @@ class MytargetAuth:
         if not state:
             state = 'none123'
         scopes = ','.join(map(str, scopes))
-        url = '{}{}?response_type=code&client_id={}&state={}&scope={}'\
+        url = '{}{}?response_type=code&client_id={}&state={}&scope={}' \
             .format(url_root, self.OAUTH_USER_URL, client_id, state, scopes)
 
         return {'state': state, 'url': url}
 
-    def get_authorization_token(self, code, client_id, **kwargs):
+    def get_authorization_token(self, client_id, code, **kwargs):
         """
         https://target.my.com/adv/api-marketing/doc/authorization
 
@@ -739,7 +680,8 @@ class MytargetAuth:
             code=code, client_id=client_id, is_sandbox=self.is_sandbox,
             **kwargs)
 
-    def refresh_token(self, refresh_token, client_id, client_secret, **kwargs):
+    def refresh_token(self, client_id, client_secret,
+                      refresh_token, **kwargs):
         """
         https://target.my.com/adv/api-marketing/doc/authorization
         Обновление токена доступа

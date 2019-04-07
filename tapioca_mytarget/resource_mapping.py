@@ -117,20 +117,4 @@ RESOURCE_MAPPING = {
         'resource': 'v2/regions.json',
         'docs': 'https://target.my.com/doc/apiv2/ru/resources/regions.html'
     },
-
-    # TOKEN
-
-    'token2': {
-        'resource': 'v2/oauth2/token.json',
-        'docs': 'https://target.my.com/adv/low_api-marketing/doc/authorization'
-    },
-    'delete_token2': {
-        'resource': 'v2/oauth2/token/delete.json',
-        'docs': 'https://target.my.com/adv/low_api-marketing/doc/authorization'
-    },
-
-    '': {
-        'resource': '',
-        'docs': ''
-    },
 }

@@ -2,7 +2,6 @@
 
 from tapioca_mytarget import MytargetAuth
 
-
 CLIENT_ID = ''
 CLIENT_SECRET = ''
 ACCESS_TOKEN = ''
@@ -12,8 +11,7 @@ auth = MytargetAuth()
 
 
 def test_refresh_token():
-    print(auth.refresh_token(client_id=CLIENT_ID, client_secret=CLIENT_SECRET,
-                             refresh_token=REFRESH_TOKEN))
+    print(auth.refresh_token(client_id=CLIENT_ID, client_secret=CLIENT_SECRET, refresh_token=REFRESH_TOKEN))
 
 
 def test_get_client_token():

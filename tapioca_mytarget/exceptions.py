@@ -18,9 +18,9 @@ class MytargetTokenError(MytargetApiError):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         jdata = self.response.json()
-        self.code = jdata.get('code', None) or \
+        self.code = jdata.get('code') or \
                     jdata.get('error', '')
-        self.message = jdata.get('message', None) or \
+        self.message = jdata.get('message') or \
                        jdata.get('error_description', '')
 
     def __str__(self):
@@ -45,5 +45,9 @@ class MytargetLimitError(MytargetApiError):
         super().__init__(*args, **kwargs)
 
     def __str__(self):
-        return 'Исчерпан лимит запросов. ' \
-               'Повторите запрос через некоторое время.'
+        return '{} {} Исчерпан лимит запросов. ' \
+               'Повторите запрос через некоторое время.\n ' \
+               '{}' \
+            .format(self.response.status_code,
+                    self.response.reason,
+                    self.response.text)
