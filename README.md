@@ -7,7 +7,13 @@ pip install git+https://github.com/pavelmaksimov/tapioca-mytarget.git
 
 ## Документация
 
-### Mytarget - Низкоуровневая обертка
+##### Содержание
+
+- Низкоуровневая обертка [Mytarget](#Mytarget)
+- Высокоуровневая обертка [MytargetLight](#MytargetLight)
+- Методы для получения токена [MytargetAuth](#MytargetAuth)
+
+### <a name="Mytarget">Mytarget</a> - Низкоуровневая обертка
 
 Написанна на базе [Tapioca](http://tapioca-wrapper.readthedocs.org/en/stable/quickstart.html). 
 
@@ -19,13 +25,13 @@ api = Mytarget(access_token='{access-token}',
                retry_request_if_limit=True)
 ```
 
-Генерация класса Mytarget происходит динамически, 
+Генерация класса **Mytarget** происходит динамически, 
 поэтому узнать о добавленных в схему методах, можно так.
 ``` python
 print(dir(api))
 ```
 
-Ресурсы API указываются в схеме в файле: tapioca_mytarget/resource_mapping.py.
+Ресурсы API указываются в схеме в файле: **tapioca_mytarget/resource_mapping.py**.
 
 ```python
 # tapioca_mytarget/resource_mapping.py
@@ -38,12 +44,15 @@ RESOURCE_MAPPING = {
 }
 ```
 
-Указав ресурс под ключом user2, появляется соответствующий метод.
+Указав ресурс под ключом **user2**, появляется соответствующий метод.
 ```python
 api.user2()
 ```
 
-Доступны разные типы запросов.
+Мне лень было добавлять все ресурсы API Mytarget в схему. 
+Вы можете сделать это сами и потом прислать мне схему ;)
+
+Доступны разные типы запросов. (Мною был протестирован только запрос **get**)
 ```python
 api.user2().get()
 api.user2().post()
@@ -65,17 +74,17 @@ RESOURCE_MAPPING = {
 }
 ```
 
-Значение указанное в методе, будет подставлено в ссылкую
+Значение указанное в методе, будет подставленно в ссылку
 ```python
 api.campaign2(campaign_id='12345').get()
 ```
 
-Доступные GET параметры для ресурса указываются в params.
+Доступные **GET** параметры для ресурса указываются в **params**.
 ```python
 api.campaign2(campaign_id='12345').get(params={'fields': 'id,name,status'})
 ```
 
-Данные в POST запросе отправить можно так.
+Данные в **POST** запросе отправить можно так.
 ```python
 api.campaign2(campaign_id='12345').post(data={'...': '...'})
 ```
@@ -91,7 +100,7 @@ api.user2().open_in_browser()
 ```
 
 #### Формат возвращаемых данных.
-Данные возвращаются в формате объекта Tapioca.
+Данные возвращаются в формате объекта **Tapioca**.
 
 ```python
 result = api.user2().get()
@@ -101,21 +110,17 @@ print(result().response.headers)
 print(result())
 ``` 
     
-Преобразовать в JSON можно так:
+Преобразовать в **JSON** можно так:
 ```python
 result().data
 ```
 
-Преобразование в DataFrame:
+Преобразование в **DataFrame**:
 ```python
 result().to_df()
 ```
 
-Мне лень было добавлять все ресурсы API в схему. 
-Вы можете сделать это сами и потом прислать мне схему ;)
-
-
-### MytargetLight - Высокоуровневая обертка 
+### <a name="MytargetLight">MytargetLight</a> - Высокоуровневая обертка 
 
 В API MyTarget есть ограничения для получения статистики под дням, 
 не более чем за 92 дня и не более 200 объектов в одном запросе.
@@ -138,6 +143,7 @@ light_api = MytargetLight(
  ```   
 
 #### Получение статистики
+https://target.my.com/adv/api-marketing/doc/stat-v2
 
 ``` python
 # По умолчанию будет возвращена суммарная статистика за все время.
@@ -145,18 +151,22 @@ data = light_api.get_stats()
  ```   
 
 ``` python
+from datetime import datetime
+
 # Если указать date_from и date_to, 
 # то будет запрошена стата по дням за указанный период.
 # В формате строки или datetime.
 data = light_api.get_stats(
     object_type=light_api.BANNER_STATS, 
-    date_from=datetime(2019, 1, 1),
+    date_from='2019-01-01',
     date_to=datetime(2019, 1, 1))
  ```   
 
 ``` python
 # По умолчанию будет получена стат. по всем кампаниям.
 data = light_api.get_stats()
+# То же самое
+data = light_api.get_stats(object_type=light_api.CAMPAIGN_STATS)
  ```   
 
 ``` python
@@ -180,7 +190,7 @@ df = light_api.get_stats(limit=2)
 # Регулировать сколько в одном запросе будет запрошено 
 # объектов или за какой интервал можно так
 df = light_api.get_stats(
-    limit_in_request=10,  # в одном запросе получать не более 2 объектов
+    limit_in_request=10,  # в одном запросе получать не более 10 объектов
     interval=30,  # кол-во дней статистики в одном запросе)
  ```   
 
@@ -214,7 +224,7 @@ regions = light_api.low_api.regions2().get()
 regions().data
 ```
 
-### MytargetAuth - Операции с токенами
+### <a name="MytargetAuth">MytargetAuth</a> - Операции с токенами
 
 https://target.my.com/adv/api-marketing/doc/authorization
 
