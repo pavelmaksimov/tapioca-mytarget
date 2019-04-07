@@ -52,12 +52,12 @@ setup(
     package_dir={'tapioca_mytarget': 'tapioca_mytarget'},
     include_package_data=True,
     install_requires=[
-        'requests',
+        'pandas',
         'requests-oauthlib>=0.4.2',
         'tapioca-wrapper==2019.4.5',
     ],
     dependency_links=[
-        'git+https://github.com/pavelmaksimov/tapioca-wrapper.git#egg=tapioca-wrapper-2019.4.5',
+        'git+https://github.com/pavelmaksimov/tapioca-wrapper#egg=tapioca-wrapper-2019.4.5',
     ],
     license="BSD",
     zip_safe=False,
