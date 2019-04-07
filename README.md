@@ -64,12 +64,17 @@ RESOURCE_MAPPING = {
 }
 ```
 
-Доступные GET параметры для метода указываются в params.
+Значение указанное в методе, будет подставлено в ссылкую
+```python
+api.campaign2(campaign_id='12345').get()
+```
+
+Доступные GET параметры для ресурса указываются в params.
 ```python
 api.campaign2(campaign_id='12345').get(params={'fields': 'id,name,status'})
 ```
 
-Данные в POST запросе.
+Данные в POST запросе отправить можно так.
 ```python
 api.campaign2(campaign_id='12345').post(data={'...': '...'})
 ```
@@ -214,7 +219,8 @@ https://target.my.com/adv/api-marketing/doc/authorization
 
 Для операций с токенами используйте методы в классе MytargetAuth.
 Я не смог сделать эти операции через низкоуровневую обертку, 
-поэтому пришлось сделать отдельным классом.
+т.к. отправляемый параметр grand_type, Mytarget не видел.
+Поэтому пришлось сделать отдельным классом.
 
 ``` python
 from tapioca_mytarget import MytargetAuth
