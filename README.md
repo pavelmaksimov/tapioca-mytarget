@@ -136,7 +136,7 @@ light_api = MytargetLight(
     as_dataframe=True)
  ```   
 
-#### get_stats - Получение статистики
+#### Получение статистики
 
 ``` python
 # По умолчанию будет возвращена суммарная статистика за все время.
@@ -188,7 +188,7 @@ df = light_api.get_stats(
 df = light_api.get_stats(as_dataframe=True)
  ```   
 
-#### get_stats - Получение объектов
+#### Получение объектов
 
 ``` python
 # Получение всех кампаний
@@ -225,11 +225,15 @@ https://target.my.com/adv/api-marketing/doc/authorization
 ``` python
 from tapioca_mytarget import MytargetAuth
 
+CLIENT_ID = ''
+CLIENT_SECRET = ''
+REFRESH_TOKEN = ''
+
 auth = Mytarget()
 
 auth.get_client_token(
-    client_id='{client_id}',
-    client_secret='{client_secret}', 
+    client_id=CLIENT_ID,
+    client_secret=CLIENT_SECRET, 
     permanent='false')
 
 auth.refresh_token(
