@@ -78,7 +78,7 @@ RESOURCE_MAPPING = {
         'resource': 'v2/campaigns/{campaign_id}.json',
         'docs': 'https://target.my.com/doc/apiv2/ru/resources/campaigns.campaign_id.html'
     },
-    'campaign_banners': {
+    'campaign_banners2': {
         'resource': 'v2/campaigns/{campaign_id}/banners.json',
         'docs': 'https://target.my.com/doc/apiv2/ru/resources/campaigns.campaign_id.banners.html'
     },
@@ -86,11 +86,11 @@ RESOURCE_MAPPING = {
         'resource': 'v2/campaigns/mass_action.json',
         'docs': 'https://target.my.com/doc/apiv2/ru/resources/campaigns.mass_action.html'
     },
-    'campaign_black_list': {
+    'campaign_black_list2': {
         'resource': 'v2/place_black_lists/{blacklist_id}.json',
         'docs': 'https://target.my.com/doc/apiv2/ru/resources/place_black_lists.blacklist_id.html'
     },
-    'campaign_black_lists': {
+    'campaign_black_lists2': {
         'resource': 'v2/place_black_lists.json',
         'docs': 'https://target.my.com/doc/apiv2/ru/resources/place_black_lists.html'
     },
