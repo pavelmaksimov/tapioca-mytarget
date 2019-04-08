@@ -31,7 +31,10 @@ api = Mytarget(access_token='{access-token}',
 print(dir(api))
 ```
 
+#### Принцип работы Tapioca
+
 Ресурсы API указываются в схеме в файле: **tapioca_mytarget/resource_mapping.py**.
+(Некоторые ресурсы я уже добавил, но не все. Тут я просто объясняю, как это работает)
 
 ```python
 # tapioca_mytarget/resource_mapping.py
