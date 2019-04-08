@@ -146,23 +146,6 @@ light_api = MytargetLight(
 https://target.my.com/adv/api-marketing/doc/stat-v2
 
 ``` python
-# По умолчанию будет возвращена суммарная статистика за все время.
-data = light_api.get_stats()
- ```   
-
-``` python
-from datetime import datetime
-
-# Если указать date_from и date_to, 
-# то будет запрошена стата по дням за указанный период.
-# В формате строки или datetime.
-data = light_api.get_stats(
-    object_type=light_api.BANNER_STATS, 
-    date_from='2019-01-01',
-    date_to=datetime(2019, 1, 1))
- ```   
-
-``` python
 # По умолчанию будет получена стат. по всем кампаниям.
 data = light_api.get_stats()
 # То же самое
@@ -180,9 +163,25 @@ data = light_api.get_stats(object_type=light_api.USER_STATS)
  ```   
 
 ``` python
+# По умолчанию будет возвращена суммарная статистика за все время.
+data = light_api.get_stats()
+ ```   
+
+``` python
+from datetime import datetime
+
+# Если указать date_from и date_to, 
+# то будет запрошена стата по дням за указанный период.
+# В формате строки или datetime.
+data = light_api.get_stats(
+    date_from='2019-01-01',
+    date_to=datetime(2019, 1, 1))
+ ```   
+
+``` python
 # Можно ограничить для теста кол-во объектов 
 # по которым будет запрошена статистика.
-df = light_api.get_stats(limit=2)
+data = light_api.get_stats(limit=2)
  ```   
 
 ``` python
