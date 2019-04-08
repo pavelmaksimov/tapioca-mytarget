@@ -13,7 +13,7 @@ from tapioca import (
 from tapioca_mytarget import exceptions
 from .resource_mapping import RESOURCE_MAPPING
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 class MytargetClientAdapter(JSONAdapterMixin, TapiocaAdapter):
