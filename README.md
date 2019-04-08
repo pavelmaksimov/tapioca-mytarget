@@ -1,5 +1,7 @@
 # Python обертка для запросов к API Mytarget
 
+Написано на версии python 3.5
+
 ## Установка
 ```
 pip install git+https://github.com/pavelmaksimov/tapioca-mytarget.git
