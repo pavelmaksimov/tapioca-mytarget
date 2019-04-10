@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 
 class MytargetClientAdapter(JSONAdapterMixin, TapiocaAdapter):
     end_point = 'https://{}/'
-    api_root = end_point+'api/'
+    api_root = end_point + 'api/'
     resource_mapping = RESOURCE_MAPPING
 
     PRODUCTION_HOST = 'target.my.com'
@@ -48,7 +48,7 @@ class MytargetClientAdapter(JSONAdapterMixin, TapiocaAdapter):
         return self.end_point.format(self.PRODUCTION_HOST)
 
     def get_api_root(self, api_params):
-        return self.get_url_root(api_params)+'api/'
+        return self.get_url_root(api_params) + 'api/'
 
     def get_request_kwargs(self, api_params, *args, **kwargs):
         params = super().get_request_kwargs(api_params, *args, **kwargs)
@@ -155,7 +155,7 @@ class MytargetLight:
         if count == 1:
             return [[i] for i in arr]
         else:
-            count = len(arr) // count+1
+            count = len(arr) // count + 1
             return [arr[i::count] for i in range(count)]
 
     def _period_range(self, date_from, date_to, delta):
@@ -173,8 +173,8 @@ class MytargetLight:
         periods = []
         dt2 = None
         while True:
-            dt1 = dt2+timedelta(1) if dt2 else date_from
-            dt2 = dt1+timedelta(delta)
+            dt1 = dt2 + timedelta(1) if dt2 else date_from
+            dt2 = dt1 + timedelta(delta)
             if dt2 > date_to:
                 if dt1 <= date_to:
                     periods.append((dt1.strftime('%Y-%m-%d'),
@@ -219,7 +219,7 @@ class MytargetLight:
                    is_union_results=True):
         """Преобразует в указанный формат."""
         if (self.as_dataframe and as_dataframe is not False) \
-                or as_dataframe:
+            or as_dataframe:
             if method == self.get_stats.__name__:
                 return self._stats_to_df(results)
             else:
@@ -256,10 +256,10 @@ class MytargetLight:
         while count > offset:
             if limit and limit_in_request > limit:
                 limit_in_request = limit
-            if limit and (count-offset) / limit_in_request < 1:
+            if limit and (count - offset) / limit_in_request < 1:
                 # При последнем запросе, нужно ограничить
                 # кол-во запрашиваемых объектов до оставшегося кол-ва.
-                limit_in_request = count-offset
+                limit_in_request = count - offset
             result = method.get(
                 params={'limit': limit_in_request,
                         'offset': offset,
@@ -280,7 +280,7 @@ class MytargetLight:
             else:
                 # Получение всех объектов.
                 count = data.get('count')
-            offset = data['offset']+limit_in_request
+            offset = data['offset'] + limit_in_request
 
         return self._to_format(self._request_objects.__name__,
                                results, as_dataframe=as_dataframe)
@@ -427,7 +427,7 @@ class MytargetLight:
             # то разделяется на несколько перидов.
             time_mode = self._DAY_STATS
             periods = self._period_range(
-                date_from, date_to, delta=interval-1)
+                date_from, date_to, delta=interval - 1)
         else:
             time_mode = self._SUMMARY_STATS
             periods = [{}]
@@ -556,7 +556,7 @@ class MytargetAuth:
         
         :return: str, json
         """
-        url = self.adapter.get_url_root(kwargs)+scheme
+        url = self.adapter.get_url_root(kwargs) + scheme
         response = requests.post(url, data=kwargs)
 
         if response.status_code == 403:
