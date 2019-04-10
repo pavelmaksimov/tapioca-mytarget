@@ -1,6 +1,7 @@
 # coding: utf-8
 import logging
 import time
+import datetime as datetime_
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -165,9 +166,11 @@ class MytargetLight:
         :param delta: int : кол-во дней в одном периоде
         :return: [..., ('2019-01-01', '2019-01-01')]
         """
-        if not isinstance(date_from, datetime):
+        if not isinstance(date_from, datetime) and \
+            not isinstance(date_from, datetime_.date):
             date_from = parser.parse(date_from)
-        if not isinstance(date_to, datetime):
+        if not isinstance(date_from, datetime) and \
+            not isinstance(date_from, datetime_.date):
             date_to = parser.parse(date_to)
 
         periods = []
