@@ -54,10 +54,6 @@ setup(
     install_requires=[
         'pandas',
         'requests-oauthlib>=0.4.2',
-        'tapioca-wrapper==2019.4.5',
-    ],
-    dependency_links=[
-        'git+https://github.com/pavelmaksimov/tapioca-wrapper#egg=tapioca-wrapper-2019.4.5',
     ],
     license="BSD",
     zip_safe=False,

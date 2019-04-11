@@ -4,6 +4,7 @@
 
 ## Установка
 ```
+pip install git+https://github.com/pavelmaksimov/tapioca-wrapper#egg=tapioca-wrapper-2019.4.5
 pip install git+https://github.com/pavelmaksimov/tapioca-mytarget.git
 ```
 
